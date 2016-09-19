@@ -19,13 +19,19 @@ GUISetOnEvent($GUI_EVENT_CLOSE, "CLOSEButton")
 ; Главное меню
 $iFileMenu = GUICtrlCreateMenu("Файл")
 $iFileOpen = GUICtrlCreateMenuItem("Открыть..", $iFileMenu)
-GUICtrlSetOnEvent($iFileOpen, "File_Open") ; DONE
+GUICtrlSetOnEvent($iFileOpen, "File_Open")
 GUICtrlCreateMenuItem("", $iFileMenu)
 $iFileSaveAs = GUICtrlCreateMenuItem("Сохранить..", $iFileMenu)
-GUICtrlSetOnEvent($iFileSaveAs, "File_Save") ; DONE
+GUICtrlSetOnEvent($iFileSaveAs, "File_Save")
+$iViewMenu = GUICtrlCreateMenu("Вид")
+$iViewThemeBright = GUICtrlCreateMenuItem("Светлая тема", $iViewMenu, 0, 1)
+$iViewThemeDark = GUICtrlCreateMenuItem("Темная тема", $iViewMenu, 1, 1)
+GUICtrlSetState($iViewThemeDark, $GUI_CHECKED)
+GUICtrlSetOnEvent($iViewThemeBright, "Theme_Change")
+GUICtrlSetOnEvent($iViewThemeDark, "Theme_Change")
 $iHelpenu = GUICtrlCreateMenu("Помощь")
 $iAbout = GUICtrlCreateMenuItem("О программе..", $iHelpenu)
-GUICtrlSetOnEvent($iAbout, "File_About") ; DONE
+GUICtrlSetOnEvent($iAbout, "File_About")
 
 ; Список шаблонов
 GUICtrlCreateLabel("ZPL Шаблоны:", 740, 20, 100)
@@ -36,7 +42,7 @@ $iListLS = GUICtrlSetData($iListItem, "2. Проверить файлы")
 $iListDel = GUICtrlSetData($iListItem, "3. Удалить файлы")
 $iListSelectButton = GUICtrlCreateButton("< - Применить", 740, 120, 140, 25)
 GUICtrlSetResizing(-1, 128)
-GUICtrlSetOnEvent($iListSelectButton, "Select_Template") ; DONE
+GUICtrlSetOnEvent($iListSelectButton, "Select_Template")
 
 ; Поле "IP адрес"
 GUICtrlCreateLabel("IP адрес:", 740, 160)
@@ -53,12 +59,12 @@ GUICtrlSetResizing(-1, 640)
 ; Кнопка "Проверить принтер"
 $iPingButton = GUICtrlCreateButton("Проверить принтер", 740, 265, 140, 25)
 GUICtrlSetResizing(-1, 128)
-GUICtrlSetOnEvent($iPingButton, "Ping_Printer") ; DONE
+GUICtrlSetOnEvent($iPingButton, "Ping_Printer")
 
 ; Кнопка "Передать команду"
 $iSendButton = GUICtrlCreateButton("Передать команду", 740, 295, 140, 25)
 GUICtrlSetResizing(-1, 128)
-GUICtrlSetOnEvent($iSendButton, "Send_Command") ; DONE
+GUICtrlSetOnEvent($iSendButton, "Send_Command")
 
 ; Редактор текста
 $iEditField = GUICtrlCreateEdit("", 20, 20, 700, 300)
@@ -71,6 +77,7 @@ $iStatusBar = GUICtrlCreateLabel("", 75, 330, 600, 100)
 GUICtrlSetFont(-1, 9, $FW_NORMAL,"", $sFont)
 
 GUISetState(@SW_SHOW, $hMainGUI)
+Theme_Change()
 
 While 1
    Sleep(100)
@@ -82,12 +89,10 @@ Func CLOSEButton()
 EndFunc ;==>CLOSEButton
 
 Func _SelAll()
-
     Switch _WinAPI_GetFocus()
         Case $iEditField_Handle
             _GUICtrlEdit_SetSel($iEditField_Handle, 0, -1)
     EndSwitch
-
 EndFunc   ;==>_SelAll
 
 Func File_Open()
@@ -99,11 +104,8 @@ Func File_Open()
 EndFunc
 
 Func File_Save()
-
    Local Const $sMessage = "Задайте имя файла."
-
    Local $sFileSave = FileSaveDialog($sMessage, "::{450D8FBA-AD25-11D0-98A8-0800361B1103}", "All (*.*)", $FD_PATHMUSTEXIST)
-
    If @error Then
        GUICtrlSetData($iStatusBar, "Файл не сохранен.")
    Else
@@ -114,6 +116,7 @@ Func File_Save()
        Else
            $sFileSave &= ".zpl"
 		EndIf
+		; TODO ==> Реализовать проверку FileExists($sFileSave)
 		FileOpen($sFileSave, 2)
 		FileWrite($sFileSave, GUICtrlRead($iEditField))
 		FileClose($sFileSave)
@@ -123,9 +126,9 @@ Func File_Save()
 EndFunc
 
 Func Select_Template()
-
    Select
-   Case StringTrimRight(GUICtrlRead($iListItem),StringLen(GUICtrlRead($iListItem))-1) = 1 ; ==> Тестовая этикетка
+   ; Тестовая этикетка
+   Case StringTrimRight(GUICtrlRead($iListItem),StringLen(GUICtrlRead($iListItem))-1) = 1
 	  GUICtrlSetData($iEditField, _
 	  "^XA" & @CRLF & _
 	  "^FX Frame ^FS" & @CRLF & _
@@ -133,26 +136,25 @@ Func Select_Template()
 	  "^FX Text ^FS" & @CRLF & _
 	  "^FO80,45^A0N,50,50^FDHello World!^FS" & @CRLF & _
 	  "^XZ")
-   Case StringTrimRight(GUICtrlRead($iListItem),StringLen(GUICtrlRead($iListItem))-1) = 2 ; ==> Проверить файлы
+   ; Проверить файлы
+   Case StringTrimRight(GUICtrlRead($iListItem),StringLen(GUICtrlRead($iListItem))-1) = 2
 	  GUICtrlSetData($iEditField, _
 	  "^XA" & @CRLF & _
 	  "^LL200" & @CRLF & _
 	  "^WDE:X5_*.*" & @CRLF & _
 	  "^XZ")
-   Case StringTrimRight(GUICtrlRead($iListItem),StringLen(GUICtrlRead($iListItem))-1) = 3 ; ==> Удалить файлы
+   ; Удалить файлы
+   Case StringTrimRight(GUICtrlRead($iListItem),StringLen(GUICtrlRead($iListItem))-1) = 3
 	  GUICtrlSetData($iEditField, _
 	  "^XA" & @CRLF & _
 	  "^IDE:X5_*.*^FS" & @CRLF & _
 	  "^XZ")
    EndSelect
    WinSetTitle($hMainGUI, "", "Zebra Tester - " & StringTrimLeft(GUICtrlRead($iListItem), 3))
-
 EndFunc
 
 Func Ping_Printer()
-
    Local $sError
-
    If GUICtrlRead($iIPaddress) = "" Then
 	  GUICtrlSetData($iStatusBar, "Не задан адрес узла!")
    Else
@@ -179,11 +181,9 @@ Func Ping_Printer()
 		 GUICtrlSetData($iStatusBar, "Узел недоступен: " & $sError)
 	  EndIf
    EndIf
-
 EndFunc
 
 Func Send_Command()
-
    If GUICtrlRead($iIPaddress) = "" Then
 	  GUICtrlSetData($iStatusBar, "Не задан адрес узла!")
    ElseIf GUICtrlRead($iPort) = "" Then
@@ -209,14 +209,22 @@ Func Send_Command()
 	  EndIf
 	  TCPCloseSocket($iSocket)
    EndIf
+EndFunc
 
+Func Theme_Change()
+   Select
+   Case BitAnd(GUICtrlRead($iViewThemeDark), $GUI_CHECKED)
+	  GUICtrlSetBkColor($iEditField, 0x404040)
+	  GUICtrlSetColor($iEditField, 0xFFD700)
+   Case BitAnd(GUICtrlRead($iViewThemeBright), $GUI_CHECKED)
+	  GUICtrlSetBkColor($iEditField, 0xFFFACD)
+	  GUICtrlSetColor($iEditField, 0x000000)
+   EndSelect
 EndFunc
 
 Func File_About()
-
-   MsgBox( 64, "Zebra Tester v.0.2", _
+   MsgBox( 64, "Zebra Tester v.0.3", _
                "Утилита предназначена для тестирования принтеров Zebra, подключенных к локальной сети." & @CRLF & _
 			   "Среда разработки: AutoIt v3." & @CRLF & @CRLF & _
 			   "По всем вопросам использования обращаться к Бурнышеву Д.")
-
 EndFunc
