@@ -39,15 +39,15 @@ GUICtrlSetResizing(-1, 128)
 GUICtrlSetOnEvent($iListSelectButton, "Select_Template") ; DONE
 
 ; Поле "IP адрес"
-GUICtrlCreateLabel("IP адрес", 740, 150)
+GUICtrlCreateLabel("IP адрес:", 740, 160)
 GUICtrlSetResizing(-1, 640)
-$iIPaddress = GUICtrlCreateInput("127.0.0.1", 740, 170, 140, 20)
+$iIPaddress = GUICtrlCreateInput("127.0.0.1", 740, 180, 140, 20)
 GUICtrlSetResizing(-1, 640)
 
 ; Поле "Порт"
-GUICtrlCreateLabel("Порт", 740, 200)
+GUICtrlCreateLabel("Порт", 740, 210)
 GUICtrlSetResizing(-1, 640)
-$iPort = GUICtrlCreateInput("6101", 740, 220, 140, 20)
+$iPort = GUICtrlCreateInput("6101", 740, 230, 140, 20)
 GUICtrlSetResizing(-1, 640)
 
 ; Кнопка "Проверить принтер"
@@ -122,15 +122,6 @@ Func File_Save()
    EndIf
 EndFunc
 
-Func File_About()
-
-   MsgBox( 64, "Zebra Tester v.0.1", _
-               "Утилита предназначена для тестирования принтеров Zebra, подключенных к локальной сети." & @CRLF & _
-			   "Среда разработки: AutoIt v3." & @CRLF & @CRLF & _
-			   "По всем вопросам использования обращаться к Бурнышеву Д.")
-
-EndFunc
-
 Func Select_Template()
 
    Select
@@ -154,6 +145,7 @@ Func Select_Template()
 	  "^IDE:X5_*.*^FS" & @CRLF & _
 	  "^XZ")
    EndSelect
+   WinSetTitle($hMainGUI, "", "Zebra Tester - " & StringTrimLeft(GUICtrlRead($iListItem), 3))
 
 EndFunc
 
@@ -217,5 +209,14 @@ Func Send_Command()
 	  EndIf
 	  TCPCloseSocket($iSocket)
    EndIf
+
+EndFunc
+
+Func File_About()
+
+   MsgBox( 64, "Zebra Tester v.0.2", _
+               "Утилита предназначена для тестирования принтеров Zebra, подключенных к локальной сети." & @CRLF & _
+			   "Среда разработки: AutoIt v3." & @CRLF & @CRLF & _
+			   "По всем вопросам использования обращаться к Бурнышеву Д.")
 
 EndFunc
