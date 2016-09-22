@@ -1,2 +1,6 @@
+test
+BackUp
 *.exe
-IPTest.au3
+*.dll
+*test*.au3
+DbugScript.au3
