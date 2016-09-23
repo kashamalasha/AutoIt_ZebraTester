@@ -8,6 +8,8 @@
 #include <GUIListBox.au3>
 #include "RSZ.au3"
 ;~ #include "DBug.au3"
+#include <SQLite.au3>
+#include <SQLite.dll.au3>
 
 Opt("GUIOnEventMode", 1)
 
@@ -19,6 +21,19 @@ EndIf
 
 Global $sFont = "Arial"
 Global Const $RETURN = 0x0D
+Global $hQuery, $aRow
+
+_SQLite_Startup()
+If @error Then
+    MsgBox($MB_SYSTEMMODAL, "SQLite Error", "SQLite3.dll Can't be Loaded")
+    Exit -1
+EndIf
+
+$hDB = _SQLite_Open('ZebraTester.sqlite')
+If @error Then
+    MsgBox($MB_SYSTEMMODAL, "SQLite Error", "Can't open database")
+    Exit -1
+EndIf
 
 HotKeySet("^a", "_SelAll")
 
@@ -53,9 +68,17 @@ GUICtrlSetOnEvent($iAbout, "File_About")
 ; Список шаблонов
 GUICtrlCreateLabel("ZPL Шаблоны:", 740, 20, 100, 15)
 $iList = _GUICtrlListBox_Create($hMainGUI, "", 740, 40, 140, 120)
-$iListLabel = _GUICtrlListBox_AddString($iList, "1. Тестовая этикетка")
-$iListLS = _GUICtrlListBox_AddString($iList, "2. Проверить файлы")
-$iListDel = _GUICtrlListBox_AddString($iList, "3. Удалить файлы")
+_SQLite_Query($hDB, _
+    "SELECT ID || "". "" || Name " & _
+    "FROM Templates " & _
+    "ORDER BY ID;", $hQuery)
+If @error Then
+    MsgBox($MB_SYSTEMMODAL, "SQLite error", "Can't execute the query")
+    Exit -1
+EndIf
+While _SQLite_FetchData($hQuery, $aRow) = $SQLITE_OK
+    _GUICtrlListBox_AddString($iList, $aRow[0])
+WEnd
 
 ; Поле "IP адрес"
 GUICtrlCreateLabel("IP адрес:", 740, 160, 100, 15)
@@ -107,6 +130,8 @@ Func CLOSEButton()
 	TCPShutdown()
 	_WinAPI_SetWindowLong($iList, $GWL_WNDPROC, $wProcOld)
 	DllCallbackFree($wProcHandle)
+    _SQLite_Close($hDB)
+    _SQLite_Shutdown()
 	Exit
 EndFunc   ;==>CLOSEButton
 
@@ -116,13 +141,6 @@ Func _SelAll()
 			_GUICtrlEdit_SetSel($iEditField_Handle, 0, -1)
 	EndSwitch
 EndFunc   ;==>_SelAll
-
-Func WM_SIZE($hWnd, $Msg, $wParam, $lParam)
-    Local $iWidth = BitAND($lParam, 0xFFFF)
-    Local $iHeight = BitShift($lParam, 16)
-   _WinAPI_MoveWindow($iList, 120, $iHeight - 90, $iWidth - 130, 80, True)
-Return $GUI_RUNDEFMSG
-EndFunc
 
 Func _WM_COMMAND($hWnd, $iMsg, $wParam, $lParam)
     Local $hWndFrom, $iIDFrom, $iCode, $hWndListBox
@@ -186,41 +204,12 @@ Func File_Save()
 EndFunc   ;==>File_Save
 
 Func Select_Template($sListItem)
-	Switch $sListItem
-		; Тестовая этикетка
-		Case 1
-			GUICtrlSetData($iEditField, _
-					"^XA" & @CRLF & _
-					"^FX  --------------------------------  ^FS" & @CRLF & _
-					"^FX | Тестовая этикетка Hello World! | ^FS" & @CRLF & _
-					"^FX  --------------------------------  ^FS" & @CRLF & _
-					"^FX" & @CRLF & _
-					"^LH50,40" & @CRLF & _
-					"^FX Frame ^FS" & @CRLF & _
-					"^FO10,10^GB270,95,2^FS" & @CRLF & _
-					"^FX Text ^FS" & @CRLF & _
-					"^FO20,30^A0I,50,50^FDHello World!^FS" & @CRLF & _
-					"^XZ")
-			; Проверить файлы
-		Case 2
-			GUICtrlSetData($iEditField, _
-					"^XA" & @CRLF & _
-					"^FX  --------------------------------  ^FS" & @CRLF & _
-					"^FX | Проверка директории FLASH (E:) | ^FS" & @CRLF & _
-					"^FX  --------------------------------  ^FS" & @CRLF & _
-					"^LL200" & @CRLF & _
-					"^WDE:X5_*.*" & @CRLF & _
-					"^XZ")
-			; Удалить файлы
-		Case 3
-			GUICtrlSetData($iEditField, _
-					"^XA" & @CRLF & _
-					"^FX  --------------------------------  ^FS" & @CRLF & _
-					"^FX | Удаление файлов из FLASH (E:)  | ^FS" & @CRLF & _
-					"^FX  --------------------------------  ^FS" & @CRLF & _
-					"^IDE:X5_*.*^FS" & @CRLF & _
-					"^XZ")
-	EndSwitch
+	_SQLite_QuerySingleRow($hDB, _
+	    "SELECT Content " & _
+		"FROM Templates " & _
+		"WHERE ID = " & $sListItem & ";",$aRow)
+;~ 		MsgBox(0, 0, $aRow[0])
+		GUICtrlSetData($iEditField, $aRow[0])
 	WinSetTitle($hMainGUI, "", "Zebra Tester - " & StringTrimLeft(GUICtrlRead($iList), 3))
 EndFunc   ;==>Select_Template
 

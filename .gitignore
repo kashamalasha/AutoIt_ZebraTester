@@ -1,3 +1,5 @@
 *.exe
-IPTest.au3
+*.dll
+DBugScript.au3
+*test*.au3
 test
