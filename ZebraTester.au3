@@ -1,45 +1,31 @@
-;~ #include <GUIConstants.au3>
 #include <GUIConstantsEx.au3>
 #include <FONTConstants.au3>
 #include <WindowsConstants.au3>
 #include <GUIEdit.au3>
 #include <WinAPI.au3>
-#include <StringConstants.au3>
 #include <GUIListBox.au3>
-#include "RSZ.au3"
-;~ #include "DBug.au3"
 #include <SQLite.au3>
 #include <SQLite.dll.au3>
+#include "RSZ.au3"
 
 Opt("GUIOnEventMode", 1)
 
 ; Запрет повторного запуска
 If WinExists('[CLASS:AutoIt v3;TITLE:' & @ScriptName & ']') Then
-    MsgBox(16, @ScriptName, 'Сценарий уже выполняется.')
-    Exit
+	MsgBox(16, @ScriptName, 'Сценарий уже выполняется.')
+	Exit
 EndIf
 
 Global $sFont = "Arial"
 Global Const $RETURN = 0x0D
 Global $hQuery, $aRow
 
-_SQLite_Startup()
-If @error Then
-    MsgBox($MB_SYSTEMMODAL, "SQLite Error", "SQLite3.dll Can't be Loaded")
-    Exit -1
-EndIf
-
-$hDB = _SQLite_Open('ZebraTester.sqlite')
-If @error Then
-    MsgBox($MB_SYSTEMMODAL, "SQLite Error", "Can't open database")
-    Exit -1
-EndIf
-
 HotKeySet("^a", "_SelAll")
 
-; TODO => Запоминать расположение окна и размер при закрытии
+; TODO => Запоминать расположение окна, размер при закрытии, параметры подключения
 
 Global $hMainGUI = GUICreate("Zebra Tester", 900, 400, 100, 100, $WS_OVERLAPPEDWINDOW)
+_SetGUI_MinSize($hMainGUI, 900, 440)
 GUISetFont(9, $FW_DONTCARE, $GUI_FONTNORMAL, "Consolas")
 GUISetOnEvent($GUI_EVENT_CLOSE, "CLOSEButton")
 
@@ -67,23 +53,22 @@ GUICtrlSetOnEvent($iAbout, "File_About")
 
 ; Список шаблонов
 GUICtrlCreateLabel("ZPL Шаблоны:", 740, 20, 100, 15)
-$iList = _GUICtrlListBox_Create($hMainGUI, "", 740, 40, 140, 120)
-_SQLite_Query($hDB, _
-    "SELECT ID || "". "" || Name " & _
-    "FROM Templates " & _
-    "ORDER BY ID;", $hQuery)
-If @error Then
-    MsgBox($MB_SYSTEMMODAL, "SQLite error", "Can't execute the query")
-    Exit -1
-EndIf
-While _SQLite_FetchData($hQuery, $aRow) = $SQLITE_OK
-    _GUICtrlListBox_AddString($iList, $aRow[0])
-WEnd
+$iList = _GUICtrlListBox_Create($hMainGUI, "", 740, 40, 140, 100)
+
+$iAddButton = GUICtrlCreateButton("Add", 740, 130, 45, 20)
+$iUpdButton = GUICtrlCreateButton("Upd", 787, 130, 45, 20)
+$iDelButton = GUICtrlCreateButton("Del", 834, 130, 45, 20)
+GUICtrlSetResizing($iAddButton, $GUI_DOCKAUTO)
+GUICtrlSetResizing($iUpdButton, $GUI_DOCKAUTO)
+GUICtrlSetResizing($iDelButton, $GUI_DOCKAUTO)
+GUICtrlSetOnEvent($iAddButton, "BUTTON_AddTemplate")
+GUICtrlSetOnEvent($iUpdButton, "BUTTON_UpdTemplate")
+GUICtrlSetOnEvent($iDelButton, "BUTTON_DelTemplate")
 
 ; Поле "IP адрес"
 GUICtrlCreateLabel("IP адрес:", 740, 160, 100, 15)
 GUICtrlSetResizing(-1, 640)
-$iIPaddress = GUICtrlCreateInput("192.168.178.23", 740, 180, 140, 20)
+$iIPaddress = GUICtrlCreateInput("127.0.0.1", 740, 180, 140, 20)
 GUICtrlSetResizing(-1, 640)
 
 ; Поле "Порт"
@@ -114,13 +99,38 @@ GUICtrlSetFont(-1, 9, $FW_BOLD, "", $sFont)
 $iStatusBar = GUICtrlCreateLabel("", 75, 330, 600, 100)
 GUICtrlSetFont(-1, 9, $FW_NORMAL, "", $sFont)
 
-_SetGUI_MinSize($hMainGUI, 900, 400)
-GUISetState(@SW_SHOW, $hMainGUI)
-Theme_Change()
 GUIRegisterMsg($WM_COMMAND, "_WM_COMMAND")
-;~ GUIRegisterMsg($WM_SIZE, "_WM_SIZE")
 $wProcHandle = DllCallbackRegister("_WindowProc", "int", "hwnd;uint;wparam;lparam")
 $wProcOld = _WinAPI_SetWindowLong($iList, $GWL_WNDPROC, DllCallbackGetPtr($wProcHandle))
+
+_SQLite_Startup()
+If @error Then
+	MsgBox($MB_SYSTEMMODAL, "SQLite Error", "SQLite3.dll Can't be Loaded")
+	Exit -1
+EndIf
+
+$hDB = _SQLite_Open('ZebraTester.sqlite')
+If @error Then
+	MsgBox($MB_SYSTEMMODAL, "SQLite Error", "Can't open database")
+	Exit -1
+EndIf
+
+$sLastIpAddress = _SQLite_QuerySingleRow($hDB, _
+			"SELECT Value " & _
+			"FROM Settings " & _
+			"WHERE Name = ""Last_IPAddress"";", $aRow)
+If $aRow[0] Then GUICtrlSetData($iIPaddress, $aRow[0])
+
+$sLastPort = _SQLite_QuerySingleRow($hDB, _
+			"SELECT Value " & _
+			"FROM Settings " & _
+			"WHERE Name = ""Last_Port"";", $aRow)
+If $aRow[0] Then GUICtrlSetData($iPort, $aRow[0])
+
+Fill_ListBox()
+Theme_Change()
+
+GUISetState(@SW_SHOW, $hMainGUI)
 
 While 1
 	Sleep(100)
@@ -130,10 +140,53 @@ Func CLOSEButton()
 	TCPShutdown()
 	_WinAPI_SetWindowLong($iList, $GWL_WNDPROC, $wProcOld)
 	DllCallbackFree($wProcHandle)
-    _SQLite_Close($hDB)
-    _SQLite_Shutdown()
+	$sLastIpAddress = GUICtrlRead($iIPaddress)
+	$sLastPort = GUICtrlRead($iPort)
+	_SQLite_Exec($hDB, "BEGIN;")
+	_SQLite_Exec($hDB, _
+			"INSERT OR REPLACE INTO Settings " & _
+			"(ID, Name, Value) " & _
+			"VALUES (1, ""Last_IPAddress"", " & _
+			"CASE " & _
+			" WHEN (SELECT Value FROM Settings WHERE ID = 1) IS NULL THEN """ & $sLastIpAddress & """ " & _
+			" ELSE """ & $sLastIpAddress& """ " & _
+			"END );")
+	_SQLite_Exec($hDB, _
+			"INSERT OR REPLACE INTO Settings " & _
+			"(ID, Name, Value) " & _
+			"VALUES (2, ""Last_Port"", " & _
+			"CASE " & _
+			" WHEN (SELECT Value FROM Settings WHERE ID = 2) IS NULL THEN """ & $sLastPort & """ " & _
+			" ELSE """ & $sLastPort& """ " & _
+			"END );")
+	If @error Then
+		MsgBox($MB_ICONERROR, "SQLite Error!", "Ошибка записи в базу данных:" & _
+				@CRLF & _SQLite_ErrMsg())
+		_SQLite_Exec($hDB, "ROLLBACK;")
+	Else
+		_SQLite_Exec($hDB, "COMMIT;")
+	EndIf
+	_SQLite_Close($hDB)
+	_SQLite_Shutdown()
 	Exit
 EndFunc   ;==>CLOSEButton
+
+Func Fill_ListBox()
+	Local $iCounter = 0
+	_SQLite_Query($hDB, _
+			"SELECT Name " & _
+			"FROM Templates " & _
+			"ORDER BY ID;", $hQuery)
+	If @error Then
+		MsgBox($MB_SYSTEMMODAL, "SQLite error", "Can't execute the query")
+		Exit -1
+	EndIf
+	_GUICtrlListBox_ResetContent($iList)
+	While _SQLite_FetchData($hQuery, $aRow) = $SQLITE_OK
+		$iCounter += 1
+		_GUICtrlListBox_AddString($iList, $iCounter & ". " & $aRow[0])
+	WEnd
+EndFunc   ;==>Fill_ListBox
 
 Func _SelAll()
 	Switch _WinAPI_GetFocus()
@@ -143,36 +196,38 @@ Func _SelAll()
 EndFunc   ;==>_SelAll
 
 Func _WM_COMMAND($hWnd, $iMsg, $wParam, $lParam)
-    Local $hWndFrom, $iIDFrom, $iCode, $hWndListBox
-    If Not IsHWnd($iList) Then $hWndListBox = GUICtrlGetHandle($iList)
-    $hWndFrom = $lParam
-    $iIDFrom = BitAND($wParam, 0xFFFF) ; Low Word
-    $iCode = BitShift($wParam, 16) ; Hi Word
+	Local $hWndFrom, $iIDFrom, $iCode, $hWndListBox
+	If Not IsHWnd($iList) Then $hWndListBox = GUICtrlGetHandle($iList)
+	$hWndFrom = $lParam
+	$iIDFrom = BitAND($wParam, 0xFFFF) ; Low Word
+	$iCode = BitShift($wParam, 16) ; Hi Word
 
-    Switch $hWndFrom
-        Case $iList, $hWndListBox
-            Switch $iCode
+	Switch $hWndFrom
+		Case $iList, $hWndListBox
+			Switch $iCode
 				Case $LBN_DBLCLK
-						Select_Template(_GUICtrlListBox_GetCurSel($iList) + 1)
-						Return 0
-            EndSwitch
-    EndSwitch
-EndFunc   ;==>WM_COMMAND
+					Local $sListItem = _GUICtrlListBox_GetText($iList, _GUICtrlListBox_GetCurSel($iList))
+					Select_Template(StringTrimLeft($sListItem, 3))
+					Return 0
+			EndSwitch
+	EndSwitch
+EndFunc   ;==>_WM_COMMAND
 
 Func _WindowProc($hWnd, $Msg, $wParam, $lParam)
-    Switch $hWnd
-        Case $iList
-            Switch $Msg
-                Case $WM_GETDLGCODE
-                    Switch $wParam
-                        Case $RETURN
-                            Select_Template(_GUICtrlListBox_GetCurSel($iList) + 1)
-                            Return 0
-                    EndSwitch
-            EndSwitch
-    EndSwitch
-    Return _WinAPI_CallWindowProc($wProcOld, $hWnd, $Msg, $wParam, $lParam)
-EndFunc
+	Switch $hWnd
+		Case $iList
+			Switch $Msg
+				Case $WM_GETDLGCODE
+					Switch $wParam
+						Case $RETURN
+							Local $sListItem = _GUICtrlListBox_GetText($iList, _GUICtrlListBox_GetCurSel($iList))
+							Select_Template(StringTrimLeft($sListItem, 3))
+							Return 0
+					EndSwitch
+			EndSwitch
+	EndSwitch
+	Return _WinAPI_CallWindowProc($wProcOld, $hWnd, $Msg, $wParam, $lParam)
+EndFunc   ;==>_WindowProc
 
 Func File_Open()
 	$FileOpen = FileOpenDialog("Открыть файл", @DesktopDir, "All (*.*)")
@@ -205,11 +260,15 @@ EndFunc   ;==>File_Save
 
 Func Select_Template($sListItem)
 	_SQLite_QuerySingleRow($hDB, _
-	    "SELECT Content " & _
-		"FROM Templates " & _
-		"WHERE ID = " & $sListItem & ";",$aRow)
-;~ 		MsgBox(0, 0, $aRow[0])
-		GUICtrlSetData($iEditField, $aRow[0])
+			"SELECT Content " & _
+			"FROM Templates " & _
+			"WHERE Name = """ & $sListItem & """;", $aRow)
+	$aRow[0] = StringStripWS( _
+			StringReplace( _
+			StringReplace($aRow[0], "^", @CRLF & "^"), _
+			@CRLF & "^FS", "^FS"), _
+			$STR_STRIPLEADING)
+	GUICtrlSetData($iEditField, $aRow[0])
 	WinSetTitle($hMainGUI, "", "Zebra Tester - " & StringTrimLeft(GUICtrlRead($iList), 3))
 EndFunc   ;==>Select_Template
 
@@ -256,8 +315,8 @@ Func Send_Command()
 		GUICtrlSetData($iStatusBar, "Нет сообщения для отправки!")
 	Else
 		TCPStartup()
-		Local $sConnectString = "Установка соединения " ; 21 символ
-		Local $sSendString = "Соединение установлено. Отправка " ; 33 символа
+		Local $sConnectString = "Установка соединения "
+		Local $sSendString = "Соединение установлено. Отправка "
 		$lCount = TimerInit()
 		Local $iCounter = 0
 		Do
@@ -314,8 +373,92 @@ Func Port_Edit()
 	EndIf
 EndFunc   ;==>Port_Edit
 
+Func BUTTON_AddTemplate()
+	Local $sContent = GUICtrlRead($iEditField)
+	Local $aPos = WinGetPos($hMainGUI)
+	Local $sNewName = InputBox("Add Template", "Enter the name of new Template", _
+			"", "", -1, -1, $aPos[2] - 420, 200)
+	If Not BitOR(@error, Not $sContent, Not $sNewName) Then
+		$sContent = StringReplace($sContent, @CRLF, @CR)
+		_SQLite_Exec($hDB, "BEGIN;")
+		_SQLite_Exec($hDB, _
+				"INSERT INTO Templates " & _
+				"(Name, Content, Type) " & _
+				"VALUES (""" & $sNewName & """, """ & $sContent & """, 2);")
+		If @error Then
+			MsgBox($MB_ICONERROR, "SQLite Error!", "Ошибка записи в базу данных:" & _
+					@CRLF & _SQLite_ErrMsg())
+			_SQLite_Exec($hDB, "ROLLBACK;")
+		EndIf
+		_SQLite_Exec($hDB, "COMMIT;")
+		Fill_ListBox()
+	ElseIf Not $sContent Then
+		MsgBox(16, "Ошибка", "Не задан текст шаблона")
+	ElseIf $sNewName = "" Then
+		MsgBox(16, "Ошибка", "Не задано имя нового шаблона")
+	Else
+		Return
+	EndIf
+EndFunc   ;==>BUTTON_AddTemplate
+
+Func BUTTON_UpdTemplate()
+	Local $sCurName = StringTrimLeft(_GUICtrlListBox_GetText($iList, _
+			_GUICtrlListBox_GetCurSel($iList)), 3)
+	Local $sContent = GUICtrlRead($iEditField)
+	$sContent = StringReplace($sContent, @CRLF, @CR)
+	If SQL_CheckType($sCurName) <> 1 Then
+		_SQLite_Exec($hDB, "BEGIN;")
+		_SQLite_Exec($hDB, _
+				"UPDATE Templates " & _
+				"SET Content = """ & $sContent & """ " & _
+				"WHERE Name = """ & $sCurName & """ " & _
+				"AND Type <> 1;")
+		If @error Then
+			MsgBox($MB_ICONERROR, "SQLite Error!", "Ошибка записи в базу данных:" & _
+					@CRLF & _SQLite_ErrMsg())
+			_SQLite_Exec($hDB, "ROLLBACK;")
+		Else
+			_SQLite_Exec($hDB, "COMMIT;")
+			MsgBox($MB_ICONINFORMATION, "Success", "Запись обновлена!")
+		EndIf
+	Else
+		MsgBox($MB_ICONWARNING, "Ошибка", "Нельзя изменить системный шаблон!")
+	EndIf
+EndFunc   ;==>BUTTON_UpdTemplate
+
+Func BUTTON_DelTemplate()
+	Local $sCurName = StringTrimLeft(_GUICtrlListBox_GetText($iList, _
+			_GUICtrlListBox_GetCurSel($iList)), 3)
+	If SQL_CheckType($sCurName) <> 1 Then
+		_SQLite_Exec($hDB, "BEGIN;")
+		_SQLite_Exec($hDB, _
+				"DELETE FROM Templates " & _
+				"WHERE Name = """ & $sCurName & """ " & _
+				"AND Type <> 1;")
+		If @error Then
+			MsgBox($MB_ICONERROR, "SQLite Error!", "Ошибка записи в базу данных:" & _
+					@CRLF & _SQLite_ErrMsg())
+			_SQLite_Exec($hDB, "ROLLBACK;")
+		Else
+			_SQLite_Exec($hDB, "COMMIT;")
+			Fill_ListBox()
+			MsgBox($MB_ICONINFORMATION, "Success", "Запись удалена!")
+		EndIf
+	Else
+		MsgBox($MB_ICONWARNING, "Ошибка", "Нельзя удалить системный шаблон!")
+	EndIf
+EndFunc   ;==>BUTTON_DelTemplate
+
+Func SQL_CheckType($sItem)
+	_SQLite_QuerySingleRow($hDB, _
+			"SELECT Type " & _
+			"FROM Templates " & _
+			"WHERE Name = """ & $sItem & """;", $aRow)
+	Return $aRow[0]
+EndFunc   ;==>SQL_CheckType
+
 Func File_About()
-	MsgBox(64, "Zebra Tester v.0.5", _
+	MsgBox(64, "Zebra Tester v.0.5.1", _
 			"Утилита предназначена для тестирования принтеров Zebra, подключенных к локальной сети." & @CRLF & _
 			"Среда разработки: AutoIt v3." & @CRLF & @CRLF & _
 			"По всем вопросам использования обращаться к Бурнышеву Д.")
