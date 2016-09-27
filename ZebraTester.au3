@@ -1,4 +1,3 @@
-;~ #include <GUIConstants.au3>
 #include <GUIConstantsEx.au3>
 #include <FONTConstants.au3>
 #include <WindowsConstants.au3>
@@ -8,6 +7,7 @@
 #include <SQLite.au3>
 #include <SQLite.dll.au3>
 #include "RSZ.au3"
+;~ #include "Dbug.au3"
 
 Opt("GUIOnEventMode", 1)
 
@@ -19,7 +19,7 @@ EndIf
 
 Global $sFont = "Arial"
 Global Const $RETURN = 0x0D
-Global Const $WINTITLE = "Zebra Tester 0.5.2"
+Global Const $WINTITLE = "Zebra Tester 0.6"
 Global $hQuery, $aRow
 
 HotKeySet("^a", "_SelAll")
@@ -113,27 +113,23 @@ EndIf
 $sLastIpAddress = _SQLite_QuerySingleRow($hDB, _
             "SELECT Value " & _
             "FROM Settings " & _
-            "WHERE Name = ""Last_IPAddress"";", $aRow)
+            "WHERE Name = 'Last_IPAddress';", $aRow)
 If $aRow[0] Then GUICtrlSetData($iIPaddress, $aRow[0])
 
 $sLastPort = _SQLite_QuerySingleRow($hDB, _
             "SELECT Value " & _
             "FROM Settings " & _
-            "WHERE Name = ""Last_Port"";", $aRow)
+            "WHERE Name = 'Last_Port';", $aRow)
 If $aRow[0] Then GUICtrlSetData($iPort, $aRow[0])
 
 Fill_ListBox()
 Theme_Change()
-GUIRegisterMsg($WM_COMMAND, "_WM_COMMAND")
-;~ GUIRegisterMsg($WM_SIZE, "_WM_SIZE")
-$wProcHandle = DllCallbackRegister("_WindowProc", "int", "hwnd;uint;wparam;lparam")
-$wProcOld = _WinAPI_SetWindowLong($iList, $GWL_WNDPROC, DllCallbackGetPtr($wProcHandle))
-
-GUIRegisterMsg($WM_COMMAND, "_WM_COMMAND")
-$wProcHandle = DllCallbackRegister("_WindowProc", "int", "hwnd;uint;wparam;lparam")
-$wProcOld = _WinAPI_SetWindowLong($iList, $GWL_WNDPROC, DllCallbackGetPtr($wProcHandle))
 
 GUISetState(@SW_SHOW, $hMainGUI)
+
+GUIRegisterMsg($WM_COMMAND, "_WM_COMMAND")
+$wProcHandle = DllCallbackRegister("_WindowProc", "int", "hwnd;uint;wparam;lparam")
+$wProcOld = _WinAPI_SetWindowLong($iList, $GWL_WNDPROC, DllCallbackGetPtr($wProcHandle))
 
 While 1
     Sleep(100)
@@ -149,18 +145,20 @@ Func CLOSEButton()
     _SQLite_Exec($hDB, _
             "INSERT OR REPLACE INTO Settings " & _
             "(ID, Name, Value) " & _
-            "VALUES (1, ""Last_IPAddress"", " & _
+            "VALUES (1, 'Last_IPAddress', " & _
             "CASE " & _
-            " WHEN (SELECT Value FROM Settings WHERE ID = 1) IS NULL THEN """ & $sLastIpAddress & """ " & _
-            " ELSE """ & $sLastIpAddress& """ " & _
+            " WHEN (SELECT Value FROM Settings WHERE ID = 1) IS NULL " & _
+			"  THEN '" & $sLastIpAddress & "' " & _
+            " ELSE '" & $sLastIpAddress& "' " & _
             "END );")
     _SQLite_Exec($hDB, _
             "INSERT OR REPLACE INTO Settings " & _
             "(ID, Name, Value) " & _
-            "VALUES (2, ""Last_Port"", " & _
+            "VALUES (2, 'Last_Port', " & _
             "CASE " & _
-            " WHEN (SELECT Value FROM Settings WHERE ID = 2) IS NULL THEN """ & $sLastPort & """ " & _
-            " ELSE """ & $sLastPort& """ " & _
+            " WHEN (SELECT Value FROM Settings WHERE ID = 2) IS NULL " & _
+			"  THEN '" & $sLastPort & "' " & _
+            " ELSE '" & $sLastPort& "' " & _
             "END );")
     If @error Then
         MsgBox($MB_ICONERROR, "SQLite Error!", "Ошибка записи в базу данных:" & _
@@ -234,7 +232,7 @@ EndFunc   ;==>_WindowProc
 
 Func File_Open()
     $FileOpen = FileOpenDialog("Открыть файл", _
-                    @DesktopDir, "ZPL Scripts (zpl.*)|Text files (*.txt)")
+                    @DesktopDir, "ZPL Scripts (*.zpl)|Text files (*.txt)")
     $sLine = FileRead($FileOpen)
     GUICtrlSetData($iEditField, $sLine)
     GUICtrlSetData($iStatusBar, "")
@@ -389,14 +387,15 @@ Func BUTTON_AddTemplate()
         _SQLite_Exec($hDB, _
                 "INSERT INTO Templates " & _
                 "(Name, Content, Type) " & _
-                "VALUES (""" & $sNewName & """, """ & $sContent & """, 2);")
+                "VALUES ('" & $sNewName & "', " & _SQLite_Escape($sContent) & ", 2);")
         If @error Then
             MsgBox($MB_ICONERROR, "SQLite Error!", "Ошибка записи в базу данных:" & _
                     @CRLF & _SQLite_ErrMsg())
             _SQLite_Exec($hDB, "ROLLBACK;")
-        EndIf
-        _SQLite_Exec($hDB, "COMMIT;")
-        Fill_ListBox()
+        Else
+			_SQLite_Exec($hDB, "COMMIT;")
+			Fill_ListBox()
+		EndIf
     ElseIf Not $sContent Then
         MsgBox(16, "Ошибка", "Не задан текст шаблона")
     ElseIf $sNewName = "" Then
@@ -415,8 +414,8 @@ Func BUTTON_UpdTemplate()
         _SQLite_Exec($hDB, "BEGIN;")
         _SQLite_Exec($hDB, _
                 "UPDATE Templates " & _
-                "SET Content = """ & $sContent & """ " & _
-                "WHERE Name = """ & $sCurName & """ " & _
+                "SET Content = " & _SQLite_Escape($sContent) & " " & _
+                "WHERE Name = '" & $sCurName & "' " & _
                 "AND Type <> 1;")
         If @error Then
             MsgBox($MB_ICONERROR, "SQLite Error!", "Ошибка записи в базу данных:" & _
@@ -438,7 +437,7 @@ Func BUTTON_DelTemplate()
         _SQLite_Exec($hDB, "BEGIN;")
         _SQLite_Exec($hDB, _
                 "DELETE FROM Templates " & _
-                "WHERE Name = """ & $sCurName & """ " & _
+                "WHERE Name = '" & $sCurName & "' " & _
                 "AND Type <> 1;")
         If @error Then
             MsgBox($MB_ICONERROR, "SQLite Error!", "Ошибка записи в базу данных:" & _
@@ -458,7 +457,7 @@ Func SQL_CheckType($sItem)
     _SQLite_QuerySingleRow($hDB, _
             "SELECT Type " & _
             "FROM Templates " & _
-            "WHERE Name = """ & $sItem & """;", $aRow)
+            "WHERE Name = '" & $sItem & "';", $aRow)
     Return $aRow[0]
 EndFunc   ;==>SQL_CheckType
 
