@@ -20,7 +20,7 @@ Opt("GUIOnEventMode", 1)
 
 #Region Constants
 ; #CONSTANTS# ================================================================
-Global Const $WINTITLE = "Zebra Tester 0.7"
+Global Const $WINTITLE = "Zebra Tester 0.8"
 Global Const $FONT = "Arial"
 Global Const $RETURN = 0x0D
 Global Const $DARKBKG[3] = [0x40, 0x40, 0x40]
@@ -306,6 +306,7 @@ Func File_Open()
     If StringLen(_GUICtrlRichEdit_GetText($hRichEdit)) > 0 Then
         _GUICtrlRichEdit_SetSel($hRichEdit, 0, -1, True)
         _GUICtrlRichEdit_ReplaceText($hRichEdit, $sLine)
+        _GUICtrlRichEdit_HideSelection($hRichEdit, False)
     Else
         _GUICtrlRichEdit_InsertText($hRichEdit, $sLine)
     EndIf
@@ -350,6 +351,7 @@ Func Select_Template($sListItem)
     If StringLen(_GUICtrlRichEdit_GetText($hRichEdit)) > 0 Then
         _GUICtrlRichEdit_SetSel($hRichEdit, 0, -1, True)
         _GUICtrlRichEdit_ReplaceText($hRichEdit, $aRow[0])
+        _GUICtrlRichEdit_HideSelection($hRichEdit, False)
     Else
         _GUICtrlRichEdit_InsertText($hRichEdit, $aRow[0])
     EndIf
@@ -450,6 +452,7 @@ EndFunc   ;==>Send_Command
 ; Описание .....: Слушатель для меню выбора темы оформления редактора текста
 ; ============================================================================
 Func Theme_Change()
+    Local $aPos = _GUICtrlRichEdit_GetScrollPos($hRichEdit)
     _GUICtrlRichEdit_SetSel($hRichEdit, 0, -1, True)
     If BitAND(GUICtrlRead($hViewThemeBright), $GUI_CHECKED) Then
         _GUICtrlRichEdit_SetBkColor($hRichEdit, _ColorSetCOLORREF($BRIGHTBKG))
@@ -459,7 +462,9 @@ Func Theme_Change()
         _GUICtrlRichEdit_SetCharColor($hRichEdit, _ColorSetCOLORREF($DARKFNT))
     EndIf
     _GUICtrlRichEdit_Deselect($hRichEdit)
+    _GUICtrlRichEdit_HideSelection($hRichEdit, False)
     _GUICtrlRichEdit_SetFont($hRichEdit, 9, "Consolas")
+    _GUICtrlRichEdit_SetScrollPos($hRichEdit, $aPos[0], $aPos[1])
 EndFunc   ;==>Theme_Change
 
 ; #FUNCTION# =================================================================
