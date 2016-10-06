@@ -1,5 +1,6 @@
 test
 BackUp
+*.sqlite
 *.exe
 *.dll
 *test*.au3
