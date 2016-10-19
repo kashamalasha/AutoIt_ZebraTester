@@ -20,7 +20,7 @@ Opt("GUIOnEventMode", 1)
 
 #Region Constants
 ; #CONSTANTS# ================================================================
-Global Const $WINTITLE = "Zebra Tester 0.8"
+Global Const $WINTITLE = "Zebra Tester 0.9"
 Global Const $FONT = "Arial"
 Global Const $RETURN = 0x0D
 Global Const $DARKBKG[3] = [0x40, 0x40, 0x40]
@@ -301,18 +301,20 @@ EndFunc   ;==>Fill_ListBox
 ; ============================================================================
 Func File_Open()
     Local $hFileOpen = FileOpenDialog("Открыть файл", _
-            @DesktopDir, "ZPL Scripts (*.zpl)|Text files (*.txt)")
-    Local $sLine = FileRead($hFileOpen)
-    If StringLen(_GUICtrlRichEdit_GetText($hRichEdit)) > 0 Then
-        _GUICtrlRichEdit_SetSel($hRichEdit, 0, -1, True)
-        _GUICtrlRichEdit_ReplaceText($hRichEdit, $sLine)
-        _GUICtrlRichEdit_HideSelection($hRichEdit, False)
-    Else
-        _GUICtrlRichEdit_InsertText($hRichEdit, $sLine)
+            @WorkingDir, "ZPL Scripts (*.zpl)|Text files (*.txt)")
+    If Not @error Then
+        Local $sLine = FileRead($hFileOpen)
+        If StringLen(_GUICtrlRichEdit_GetText($hRichEdit)) > 0 Then
+            _GUICtrlRichEdit_SetSel($hRichEdit, 0, -1, True)
+            _GUICtrlRichEdit_ReplaceText($hRichEdit, $sLine)
+            _GUICtrlRichEdit_HideSelection($hRichEdit, False)
+        Else
+            _GUICtrlRichEdit_InsertText($hRichEdit, $sLine)
+        EndIf
+        _GUICtrlRichEdit_SetScrollPos($hRichEdit, 0, 0)
+        GUICtrlSetData($hStatusBar, "")
+        WinSetTitle($hMainGUI, "", $WINTITLE & " - " & $hFileOpen)
     EndIf
-    _GUICtrlRichEdit_SetScrollPos($hRichEdit, 0, 0)
-    GUICtrlSetData($hStatusBar, "")
-    WinSetTitle($hMainGUI, "", $WINTITLE & " - " & $hFileOpen)
 EndFunc   ;==>File_Open
 
 ; #FUNCTION# =================================================================
